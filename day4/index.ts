@@ -1,4 +1,4 @@
-import { reduce, indexOf, slice, maxBy, dropRight, map } from "lodash";
+import { map } from "lodash";
 import { input } from "./input";
 import { example } from "./example";
 
@@ -75,7 +75,7 @@ function part2(data: string[]) {
   return totalt;
 }
 
-console.log("Day 3: Lobby");
+console.log("Day 4: Printing Department");
 console.log("---------");
 console.log("Part 1");
 console.log("Example: " + part1(example));
