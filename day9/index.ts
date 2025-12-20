@@ -1,4 +1,4 @@
-import { first, flatMap, forEach, range, reduce, reverse, slice, sortBy, tail, take } from "lodash";
+import { first, flatMap, reverse, sortBy, tail } from "lodash";
 import { input } from "./input";
 import { example } from "./example";
 import { point, Polygon } from "@flatten-js/core";
@@ -12,18 +12,38 @@ type Pair = {
   rectangle: Rectangle;
 };
 
-function toSet(pairs: Pair[]): Set<string> {
-  const rs = pairs.map((p) => {
-    return p.rectangle;
-  });
-
-  const dd = rs.flatMap((r) => r.map((d) => d));
-  const ask = dd.map((aa) => toKey(aa));
-  return new Set(ask);
+function sortedPolygons(cornersInside: Pair[]) {
+  const parts = cornersInside.map((item) => toPolygon(item));
+  return sortBy(parts, "area");
 }
 
-function toKey(aa: Point2D): any {
-  return `${aa[0]},${aa[1]}`;
+function toPolygon(item: Pair): { poly: Polygon; area: number } {
+  return { poly: new Polygon([...item.rectangle]), area: item.area };
+}
+
+function candidates(pairs: Pair[], shape: Polygon) {
+  const pairsSet = toSet(pairs);
+  const lookupMap = new Map<string, boolean>();
+  pairsSet.forEach((item) => {
+    const parts = item.split(",").map(Number);
+    const inside = shape.contains(point(parts[0], parts[1]));
+    lookupMap.set(item, inside);
+  });
+  return pairs.filter((pair) => lookupAllInside(pair, lookupMap));
+}
+
+function lookupAllInside(pair: Pair, lookupMap: Map<string, boolean>): unknown {
+  return pair.rectangle.filter((points) => lookupMap.get(toKey(points))).length === pair.rectangle.length;
+}
+
+function toSet(pairs: Pair[]): Set<string> {
+  const points = pairs.map((pair) => pair.rectangle).flatMap((rectangle) => rectangle.map((point) => point));
+  const pointKeys = points.map((point) => toKey(point));
+  return new Set(pointKeys);
+}
+
+function toKey(point: Point2D) {
+  return `${point[0]},${point[1]}`;
 }
 
 function parsePoints(data: string[]): Point2D[] {
@@ -73,50 +93,15 @@ function part1(data: string[]) {
 /**
  * Also a bit slow, but actually works, takes < minute
  */
-function part2(data: string[]) {
+function part2(data: string[], offset: number) {
   const points = parsePoints(data);
-
   const ps = points.map((i) => point(i[0], i[1]));
   const shape = new Polygon(ps);
-
   const pairs = allPairs(points);
+  const cornersInside = candidates(pairs, shape);
+  const sorted = sortedPolygons(cornersInside);
 
-  const asSet = toSet(pairs);
-
-  const s = new Map<string, boolean>();
-
-  asSet.forEach((i) => {
-    const parts = i.split(",").map(Number);
-
-    const dd = point(parts[0], parts[1]);
-
-    const inside = shape.contains(dd);
-
-    s.set(i, inside);
-  });
-
-  const isin = pairs.filter((p) => {
-    const cords = p.rectangle;
-
-    const ins = cords.filter((c) => {
-      const k = toKey(c);
-      return s.get(k) === true;
-    });
-
-    return ins.length === 4;
-  });
-
-  const parts = isin.map((item) => {
-    return { poly: new Polygon([...item.rectangle]), area: item.area };
-  });
-
-  const sorted = sortBy(parts, "area");
-
-  for (let i = sorted.length; i--; i > 0) {
-    if (i % 50 == 0) {
-      console.log(i);
-    }
-
+  for (let i = sorted.length - offset; i--; i > 0) {
     if (sorted[i].poly.edges.size > 0 && shape.contains(sorted[i].poly)) {
       return sorted[i].area;
     }
@@ -126,10 +111,10 @@ function part2(data: string[]) {
 console.log("Day 9: Movie Theater");
 console.log("---------");
 console.log("Part 1");
-// console.log("Example: " + part1(example));
-// console.log("Input: " + part1(input));
-console.log("Example: " + part2(example));
-console.log("Input: " + part2(input));
+console.log("Example: " + part1(example));
+console.log("Input: " + part1(input));
+console.log("Example: " + part2(example, 0));
+console.log("Input: " + part2(input, 800));
 
 // To high: 4650952673
 // To high: 4598853740
