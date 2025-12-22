@@ -1,6 +1,7 @@
 import { clone, constant, every, find, first, flatMap, forEach, initial, isEqual, last, map, reduce, reverse, sortBy, tail, times } from "lodash";
 import { input } from "./input";
 import { example } from "./example";
+import { init } from "z3-solver";
 
 function parseLights(lights: string | undefined): string[] {
   return lights?.replace("[", "").replace("]", "").split("") ?? [];
@@ -92,7 +93,7 @@ function createInitialState(length: number) {
   return times(length, constant("."));
 }
 
-function processPart2(buttons: number[][], joltageStart: number[], targetJoltage: number[]) {
+function processPartWorksForExampleButNotInput(buttons: number[][], joltageStart: number[], targetJoltage: number[]) {
   const queue = [{ joltage: joltageStart, depth: 0 }];
   const visited = new Set<string>();
 
@@ -120,6 +121,41 @@ function processPart2(buttons: number[][], joltageStart: number[], targetJoltage
   }
 }
 
+export async function processZsolver(buttons: number[][], target: number[]): Promise<number> {
+  const { Context } = await init();
+  const context = new (Context as any)("joltage");
+  const buttonLength = buttons.length;
+  const targetLength = target.length;
+
+  const x = Array.from({ length: buttonLength }, (_, i) => context.Int.const(`x_${i}`));
+  const opt = new context.Optimize();
+
+  for (const xi of x) {
+    opt.add(xi.ge(0));
+  }
+
+  for (let j = 0; j < targetLength; j++) {
+    const contributors = [];
+    for (let i = 0; i < buttonLength; i++) {
+      if (buttons[i].includes(j)) {
+        contributors.push(x[i]);
+      }
+    }
+    opt.add(context.Sum(...contributors).eq(target[j]));
+  }
+
+  const total = context.Sum(...x);
+  opt.minimize(total);
+  const result = await opt.check();
+
+  if (result !== "sat") {
+    throw new Error("No solution");
+  }
+
+  const model = opt.model();
+  return Number(model.eval(total).toString());
+}
+
 function part1(data: string[]) {
   const parsed = parseData(data);
   return reduce(
@@ -137,19 +173,38 @@ function part2(data: string[]) {
   return reduce(
     parsed,
     (acc, item) => {
-      const i = processPart2(item.buttons, createInitialJoltage(item.joltage.length), item.joltage);
+      const i = processPartWorksForExampleButNotInput(item.buttons, createInitialJoltage(item.joltage.length), item.joltage);
       return acc + i;
     },
     0
   );
 }
 
-console.log("Day 10: Factory");
-console.log("---------");
-console.log("Part 1");
-console.log("Example: " + part1(example));
-console.log("Input: " + part1(input));
+async function part2Zsolver(data: string[]) {
+  const parsed = parseData(data);
+  let acc = 0;
+  for (let i = 0; i < parsed.length; i++) {
+    const state = parsed[i];
+    const result = await processZsolver(state.buttons, state.joltage);
+    const progress = Math.ceil((i / parsed.length) * 100);
+    if (progress % 5 === 0) {
+      console.log("Progress: " + progress + "%");
+    }
+    acc += result;
+  }
+  return acc;
+}
 
-console.log("Part 2");
-console.log("Example: " + part2(example));
-// console.log("Input: " + part2(input));
+async function main() {
+  console.log("Day 10: Factory");
+  console.log("---------");
+  console.log("Part 1");
+  console.log("Example: " + part1(example));
+  console.log("Input: " + part1(input));
+
+  console.log("Part 2");
+  console.log("Input: " + part2(example));
+  console.log("Example: " + (await part2Zsolver(input)));
+}
+
+main();
